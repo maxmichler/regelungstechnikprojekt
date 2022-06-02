@@ -285,7 +285,7 @@ class Heli:
         dot_alpha = 1/(self.J1+(self.J2+self.J4)*ceps**2)*(p_alpha-self.J4*ceps*u[1]) 
         F_alpha = self.s1*abs(u[0])*u[0]
         F_eps = self.s2*abs(u[1])*u[1]
-
+        #Test
         #Zustandsgleichungen
         dot_epsilon=1/(self.J3+self.J5)*(p_epsilon-self.J5*u[0]) 
         D_alpha = self.c1*dot_alpha
