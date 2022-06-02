@@ -134,6 +134,9 @@ class Heli:
         #Hier die sollten die korrekten Ruhelagen in Abhängigkeit des zugehörigen Ausgangs berechnet werden
         x=np.zeros((3,))
         u=np.zeros((2,))
+        p_eps = self.J5*u[0]
+        p_alpha = (self.J1+(self.J2+self.J4)*np.cos(epsilon)**2)*dalpha+self.J4*np.cos(epsilon)*u[1]
+        x = np.array([epsilon,p_alpha,p_eps])
         ######-------!!!!!!Aufgabe Ende!!!!!!-------########
 
         return x,u
@@ -282,10 +285,11 @@ class Heli:
         #u[1] = w_e, u[0]=w_a
 
         #Aus Gleichung 1a
+        global dot_alpha 
         dot_alpha = 1/(self.J1+(self.J2+self.J4)*ceps**2)*(p_alpha-self.J4*ceps*u[1]) 
         F_alpha = self.s1*abs(u[0])*u[0]
         F_eps = self.s2*abs(u[1])*u[1]
-        #Test
+
         #Zustandsgleichungen
         dot_epsilon=1/(self.J3+self.J5)*(p_epsilon-self.J5*u[0]) 
         D_alpha = self.c1*dot_alpha
@@ -294,7 +298,6 @@ class Heli:
         dot_p_epsilon=-self.Vmax*ceps-1/2*(self.J2+self.J4)*np.sin(2*epsilon)*dot_alpha**2-self.J4*u[1]*seps*dot_alpha+self.d1*F_eps-D_eps
 
         dx=np.array([dot_epsilon,dot_p_alpha,dot_p_epsilon])
-
         ######-------!!!!!!Aufgabe Ende!!!!!!-------########
         return dx
 
@@ -304,10 +307,13 @@ class Heli:
         u=controller(t,x)
         ######-------!!!!!!Aufgabe!!!!!!-------------########
         #Hier sollten die korrekten Ausgänge berechnet werden
+
         if np.isscalar(t):
             y=np.zeros((2,))
-        else:
+            y = np.array([x[0],dot_alpha])
+        else: #Des stimmt glob noch ne
             y=np.zeros((2,t.shape[0]))
+            y = np.array([x[0],dot_alpha])
         ######-------!!!!!!Aufgabe Ende!!!!!!-------########
         return y
 
