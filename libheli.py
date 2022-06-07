@@ -6,6 +6,7 @@ from libmimo import mimo_rnf, mimo_acker, poly_transition
 from scipy.linalg import solve_continuous_are
 from scipy.linalg import solve_discrete_are
 from scipy.signal import cont2discrete
+from sympy import *
 
 
 class LinearizedSystem:
@@ -130,31 +131,29 @@ class Heli:
         epsilon = y[0]
 
         # Rotationsgeschwindigkeit des Auslegers um die  Vertikale
-        dalpha = y[1]
+        dot_alpha = y[1]
 
         ######-------!!!!!!Aufgabe!!!!!!-------------########
         # Hier die sollten die korrekten Ruhelagen in Abhängigkeit des zugehörigen Ausgangs berechnet werden
-        x = np.zeros((3,))
-        u = np.zeros((2,))
 
         # Winkelfunktionen vorausberechnen
         ceps = np.cos(epsilon)
         seps = np.sin(epsilon)
         s2eps = np.sin(2*epsilon)
 
-        # dot_p_alpha = self.d2*ceps*self.s1*abs(w_alpha)*w_alpha-self.c1*dalpha - Gleichung 2a
-        F_alpha = self.c1*dalpha/(self.d1*ceps)
+        # dot_p_alpha = self.d2*ceps*self.s1*abs(w_alpha)*w_alpha-self.c1*dot_alpha - Gleichung 2a
+        F_alpha = self.c1*dot_alpha/(self.d1*ceps)
         if(F_alpha >= 0):
-            w_alpha = np.sqrt(self.c1*dalpha/(self.d2*ceps*self.s1))
+            w_alpha = np.sqrt(self.c1*dot_alpha/(self.d2*ceps*self.s1))
         else:
-            w_alpha = np.sqrt(-self.c1*dalpha/(self.d2*ceps*self.s1))
+            w_alpha = np.sqrt(-self.c1*dot_alpha/(self.d2*ceps*self.s1))
 
-        # dot_p_epsilon = -self.Vmax*ceps-1/2*(self.J2+self.J4)*s2eps*dalpha**2-self.J4*w_epsilon*seps*dalpha+self.d2*self.s2*abs(w_epsilon)*w_epsilon - Gleichung 2b
+        # dot_p_epsilon = -self.Vmax*ceps-1/2*(self.J2+self.J4)*s2eps*dot_alpha**2-self.J4*w_epsilon*seps*dot_alpha+self.d2*self.s2*abs(w_epsilon)*w_epsilon - Gleichung 2b
         # mit kleiner Lösungsformel lösen - Achtung auf Fallunterscheidung da abs(w_epsilon)*w_epsilon != w_epsilon**2
 
-        p = -self.J4*seps*dalpha/(self.d2*self.s2)
+        p = -self.J4*seps*dot_alpha/(self.d2*self.s2)
         q = (-self.Vmax*ceps-1/2*(self.J2+self.J4)
-             * s2eps*dalpha**2)/(self.d2*self.s2)
+             * s2eps*dot_alpha**2)/(self.d2*self.s2)
 
         if((p/2)**2-q < 0):  # w_epsilon kann nur Realteil besitzen - Fallunterscheidung
             p = -1*p
@@ -166,14 +165,15 @@ class Heli:
         dot_p_epsilon_1 = abs(w_epsilon_1)*w_epsilon_1+p*w_epsilon_1+q
         dot_p_epsilon_2 = abs(w_epsilon_2)*w_epsilon_2+p*w_epsilon_2+q
 
-        if(dot_p_epsilon_1 > -0.001 and dot_p_epsilon_1 < 0.001):
+        # Fallunterscheidung in Ableitung einsetzten - sollte eigentlich null sein bis auf numerische Ungenauigkeiten
+        if(dot_p_epsilon_1 > -0.0001 and dot_p_epsilon_1 < 0.0001):
             w_epsilon = w_epsilon_1
-        elif(dot_p_epsilon_2 > -0.001 and dot_p_epsilon_2 < 0.001):
+        elif(dot_p_epsilon_2 > -0.0001 and dot_p_epsilon_2 < 0.0001):
             w_epsilon = w_epsilon_2
         else:
             w_epsilon = 0
 
-        p_alpha = (self.J1+(self.J2+self.J4)*ceps**2)*dalpha + \
+        p_alpha = (self.J1+(self.J2+self.J4)*ceps**2)*dot_alpha + \
             self.J4*ceps*w_epsilon  # Gleichung 1a
         p_epsilon = self.J5*w_alpha  # Gleichung 1b
 
@@ -191,10 +191,47 @@ class Heli:
 
         ######-------!!!!!!Aufgabe!!!!!!-------------########
         # Hier die sollten die korrekten Matrizen angegeben werden
-        A = np.zeros((3, 3))
-        B = np.zeros((3, 2))
-        C = np.zeros((2, 3))
-        D = np.zeros((2, 2))
+        # Winkelfunktionen vorausberechnen
+
+        epsilon, p_epsilon, p_alpha, w_alpha, w_abs_alpha, w_epsilon, w_abs_epsilon = symbols(
+            'epsilon p_epsilon p_alpha w_alpha w_abs_alpha w_epsilon w_abs_epsilon')
+
+        dot_alpha = (p_alpha - self.J4*cos(epsilon)*w_epsilon) / \
+            (self.J1+(self.J2+self.J4)*cos(epsilon)**2)
+
+        G = Matrix([[(p_epsilon-self.J5*w_alpha)/(self.J3+self.J5)],
+                    [self.d1*cos(epsilon)*self.s1*w_abs_alpha *
+                     w_alpha-self.c1*dot_alpha],
+                    [-self.Vmax*cos(epsilon)-1/2*(self.J2+self.J4)*sin(2*epsilon)*dot_alpha**2-self.J4*w_epsilon*sin(epsilon)*dot_alpha+self.d2*self.s2*w_abs_epsilon*w_epsilon-self.c2*(p_epsilon-self.J5*w_alpha)/(self.J3+self.J5)]])
+
+        A = diff(G, epsilon)
+        A = A.col_insert(1, diff(G, p_alpha))
+        A = A.col_insert(2, diff(G, p_epsilon))
+
+        A = A.subs({epsilon: x_equi[0], p_alpha: x_equi[1], p_epsilon: x_equi[2], w_alpha: u_equi[0], w_abs_alpha: abs(
+            u_equi[0]), w_epsilon: u_equi[1], w_abs_epsilon: abs(u_equi[1])})
+
+        B = diff(G, w_alpha)+diff(G, w_abs_alpha)
+        B = B.col_insert(1, diff(G, w_epsilon)+diff(G, w_abs_epsilon))
+
+        B = B.subs({epsilon: x_equi[0], p_alpha: x_equi[1], p_epsilon: x_equi[2], w_alpha: u_equi[0], w_abs_alpha: abs(
+            u_equi[0]), w_epsilon: u_equi[1], w_abs_epsilon: abs(u_equi[1])})
+
+        y = Matrix([[epsilon], [dot_alpha]])  # Ausgangsvektor
+
+        C = diff(y, epsilon)
+        C = C.col_insert(1, diff(y, p_alpha))
+        C = C.col_insert(2, diff(y, p_epsilon))
+
+        C = C.subs({epsilon: x_equi[0], p_alpha: x_equi[1], p_epsilon: x_equi[2], w_alpha: u_equi[0], w_abs_alpha: abs(
+            u_equi[0]), w_epsilon: u_equi[1], w_abs_epsilon: abs(u_equi[1])})
+
+        D = diff(y, w_alpha)+diff(y, w_abs_alpha)
+        D = D.col_insert(1, diff(y, w_epsilon)+diff(y, w_abs_epsilon))
+
+        D = D.subs({epsilon: x_equi[0], p_alpha: x_equi[1], p_epsilon: x_equi[2], w_alpha: u_equi[0], w_abs_alpha: abs(
+            u_equi[0]), w_epsilon: u_equi[1], w_abs_epsilon: abs(u_equi[1])})
+
         ######-------!!!!!!Aufgabe Ende!!!!!!-------########
 
         return ContinuousLinearizedSystem(A, B, C, D, x_equi, u_equi, y_equi)
