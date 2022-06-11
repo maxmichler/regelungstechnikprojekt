@@ -210,12 +210,14 @@ class Heli:
 
         A = A.subs({epsilon: x_equi[0], p_alpha: x_equi[1], p_epsilon: x_equi[2], w_alpha: u_equi[0], w_abs_alpha: abs(
             u_equi[0]), w_epsilon: u_equi[1], w_abs_epsilon: abs(u_equi[1])})
+        A = np.array(A).astype(np.float64)
 
         B = diff(G, w_alpha)+diff(G, w_abs_alpha)
         B = B.col_insert(1, diff(G, w_epsilon)+diff(G, w_abs_epsilon))
 
         B = B.subs({epsilon: x_equi[0], p_alpha: x_equi[1], p_epsilon: x_equi[2], w_alpha: u_equi[0], w_abs_alpha: abs(
             u_equi[0]), w_epsilon: u_equi[1], w_abs_epsilon: abs(u_equi[1])})
+        B = np.array(B).astype(np.float64)
 
         y = Matrix([[epsilon], [dot_alpha]])  # Ausgangsvektor
 
@@ -225,13 +227,14 @@ class Heli:
 
         C = C.subs({epsilon: x_equi[0], p_alpha: x_equi[1], p_epsilon: x_equi[2], w_alpha: u_equi[0], w_abs_alpha: abs(
             u_equi[0]), w_epsilon: u_equi[1], w_abs_epsilon: abs(u_equi[1])})
+        C = np.array(C).astype(np.float64)
 
         D = diff(y, w_alpha)+diff(y, w_abs_alpha)
         D = D.col_insert(1, diff(y, w_epsilon)+diff(y, w_abs_epsilon))
 
         D = D.subs({epsilon: x_equi[0], p_alpha: x_equi[1], p_epsilon: x_equi[2], w_alpha: u_equi[0], w_abs_alpha: abs(
             u_equi[0]), w_epsilon: u_equi[1], w_abs_epsilon: abs(u_equi[1])})
-
+        D = np.array(D).astype(np.float64)
         ######-------!!!!!!Aufgabe Ende!!!!!!-------########
 
         return ContinuousLinearizedSystem(A, B, C, D, x_equi, u_equi, y_equi)
@@ -497,10 +500,11 @@ class ContinuousFlatnessBasedTrajectory:
 
         ######-------!!!!!!Aufgabe!!!!!!-------------########
         # Hier bitte benötigte Zeilen wieder "dekommentieren" und Rest löschen
-        #self.A_rnf, Brnf, Crnf, self.M, self.Q, S = mimo_rnf(linearized_system.A, linearized_system.B, linearized_system.C, kronecker)
-        self.A_rnf = np.zeros((3, 3))
-        self.M = np.eye(2)
-        self.Q = np.eye(3)
+        self.A_rnf, Brnf, Crnf, self.M, self.Q, S = mimo_rnf(
+            linearized_system.A, linearized_system.B, linearized_system.C, kronecker)
+        # self.A_rnf = np.zeros((3, 3))
+        # self.M = np.eye(2)
+        # self.Q = np.eye(3)
         ######-------!!!!!!Aufgabe Ende!!!!!!-------########
 
         # Umrechnung stationäre Werte zwischen Ausgang und flachem Ausgang
