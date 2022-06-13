@@ -500,6 +500,8 @@ class ContinuousFlatnessBasedTrajectory:
 
         ######-------!!!!!!Aufgabe!!!!!!-------------########
         # Hier bitte benötigte Zeilen wieder "dekommentieren" und Rest löschen
+        # Q Transformationsmatrix
+        # S Kalmannsche Steuerbarkeitsmatrix
         self.A_rnf, Brnf, Crnf, self.M, self.Q, S = mimo_rnf(
             linearized_system.A, linearized_system.B, linearized_system.C, kronecker)
         # self.A_rnf = np.zeros((3, 3))
@@ -511,9 +513,20 @@ class ContinuousFlatnessBasedTrajectory:
         ######-------!!!!!!Aufgabe!!!!!!-------------########
         # Hier sollten die korrekten Anfangs und Endwerte für den flachen Ausgang berechnet werden
         # Achtung: Hier sollten alle werte relativ zum Arbeitspunkt angegeben werden
+        # y = C * x
+        # x_3 = 0 somit C nur 2x2 Matrix essentiell x schiebt sich mit jedem Zeitschritt nach "oben"
 
-        self.eta_a = np.zeros_like(ya_rel)
-        self.eta_b = np.zeros_like(yb_rel)
+        # eta_a_1 = (ya_rel[0]-Crnf[0, 1]/Crnf[1, 1]*ya_rel[1]) / \
+        #     (Crnf[0, 0]-Crnf[1, 0]*Crnf[0, 1]/Crnf[1, 1])
+        # eta_a_2 = (ya_rel[1]-Crnf[1, 0]*eta_a_1)/Crnf[1, 1]
+        # self.eta_a = np.array([eta_a_1, eta_a_2])
+        display(Crnf)
+        self.eta_a = np.linalg.inv(Crnf[:, 0:2]) @ ya_rel
+        self.eta_b = np.linalg.inv(Crnf[:, 0:2]) @ yb_rel
+        display(ya_rel)
+        display(yb_rel)
+        display(self.eta_a)
+        display(self.eta_b)
 
         ######-------!!!!!!Aufgabe Ende!!!!!!-------########
 
@@ -532,7 +545,29 @@ class ContinuousFlatnessBasedTrajectory:
         dim_x = np.size(self.linearized_system.x_equi)
         dim_t = np.size(tv)
         ######-------!!!!!!Aufgabe!!!!!!-------------########
-        state = np.zeros((dim_x, dim_t))
+        #x = Q*xrnf
+
+        eta = list()
+        for index in range(dim_u):
+            eta = eta+[self.flat_output(tv, index, deri)
+                       for deri in range(self.kronecker[index])]
+        xrnf = np.vstack(eta)
+
+        # xrnf = np.array([
+        #     self.flat_output(t, index, deri)
+        #     for index, k in enumerate(self.kronecker)
+        #     for deri in range(k)
+        # ])
+
+        # display(xrnf)
+        # display(self.linearized_system.x_equi)
+        x = np.linalg.inv(self.Q) @ xrnf
+        #state = x + self.linearized_system.x_equi.transpose()
+        state = np.transpose(x.transpose() + self.linearized_system.x_equi)
+
+        if (np.isscalar(t)):
+            state = state[:, 0]
+
         ######-------!!!!!!Aufgabe Ende!!!!!!-------########
         return state
 
