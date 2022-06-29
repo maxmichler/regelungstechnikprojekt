@@ -62,7 +62,12 @@ class ContinuousLinearizedSystem(LinearizedSystem):
         assert Ta > 0
         ######-------!!!!!!Aufgabe!!!!!!-------------########
         # bitte anpassen
-        return DiscreteLinearizedSystem(self.A, self.B, self.C, self.D, self.x_equi, self.u_equi, self.y_equi, Ta)
+
+        A_d = sla.expm(self.A*Ta)
+        B_d = integrate(lambda tau: sla.expm(self.A*tau), 0, Ta)
+        C_d = self.C
+        D_d = self.D
+        return DiscreteLinearizedSystem(A_d, B_d, C_d, D_d, self.x_equi, self.u_equi, self.y_equi, Ta)
         ######-------!!!!!!Aufgabe Ende!!!!!!-------########
 
     # Quadratisch optimaler Regler
@@ -162,13 +167,13 @@ class Heli:
         w_epsilon_1 = -p/2+np.sqrt((p/2)**2-q)
         w_epsilon_2 = -p/2-np.sqrt((p/2)**2-q)
 
-        dot_p_epsilon_1 = abs(w_epsilon_1)*w_epsilon_1+p*w_epsilon_1+q
-        dot_p_epsilon_2 = abs(w_epsilon_2)*w_epsilon_2+p*w_epsilon_2+q
+        test_1 = abs(w_epsilon_1)*w_epsilon_1+p*w_epsilon_1+q
+        test_2 = abs(w_epsilon_2)*w_epsilon_2+p*w_epsilon_2+q
 
-        # Fallunterscheidung in Ableitung einsetzten - sollte eigentlich null sein bis auf numerische Ungenauigkeiten
-        if(dot_p_epsilon_1 > -0.0001 and dot_p_epsilon_1 < 0.0001):
+        # Fallunterscheidung in Gleichung einsetzten, um Nullstelle zu finden - sollte eigentlich null sein bis auf numerische Ungenauigkeiten
+        if(test_1 > -0.0001 and test_1 < 0.0001):
             w_epsilon = w_epsilon_1
-        elif(dot_p_epsilon_2 > -0.0001 and dot_p_epsilon_2 < 0.0001):
+        elif(test_2 > -0.0001 and test_2 < 0.0001):
             w_epsilon = w_epsilon_2
         else:
             w_epsilon = 0
@@ -514,23 +519,28 @@ class ContinuousFlatnessBasedTrajectory:
         # Hier sollten die korrekten Anfangs und Endwerte für den flachen Ausgang berechnet werden
         # Achtung: Hier sollten alle werte relativ zum Arbeitspunkt angegeben werden
         # y = C * x
-        # x_3 = 0 somit C nur 2x2 Matrix essentiell x schiebt sich mit jedem Zeitschritt nach "oben"
+        # x_3 = 0 da Kroneckerindizes 1 und 2 sind
 
         # eta_a_1 = (ya_rel[0]-Crnf[0, 1]/Crnf[1, 1]*ya_rel[1]) / \
         #     (Crnf[0, 0]-Crnf[1, 0]*Crnf[0, 1]/Crnf[1, 1])
         # eta_a_2 = (ya_rel[1]-Crnf[1, 0]*eta_a_1)/Crnf[1, 1]
         # self.eta_a = np.array([eta_a_1, eta_a_2])
-        display(Crnf)
-        self.eta_a = np.linalg.inv(Crnf[:, 0:2]) @ ya_rel
-        self.eta_b = np.linalg.inv(Crnf[:, 0:2]) @ yb_rel
-        display(ya_rel)
-        display(yb_rel)
-        display(self.eta_a)
-        display(self.eta_b)
+
+        if kronecker == (1, 2):
+            display('true')
+            self.eta_a = np.linalg.inv(Crnf[:, 0:2]) @ ya_rel
+            self.eta_b = np.linalg.inv(Crnf[:, 0:2]) @ yb_rel
+        elif kronecker == (2, 1):
+            C = np.array([[Crnf[0, 0], Crnf[0, 2]], [Crnf[1, 0], Crnf[1, 2]]])
+            self.eta_a = np.linalg.inv(C) @ ya_rel
+            self.eta_b = np.linalg.inv(C) @ yb_rel
+
+        display(linearized_system.y_equi)
 
         ######-------!!!!!!Aufgabe Ende!!!!!!-------########
 
     # Trajektorie des flachen Ausgangs
+
     def flat_output(self, t, index, derivative):
         tau = t / self.T
         if derivative == 0:
@@ -545,7 +555,7 @@ class ContinuousFlatnessBasedTrajectory:
         dim_x = np.size(self.linearized_system.x_equi)
         dim_t = np.size(tv)
         ######-------!!!!!!Aufgabe!!!!!!-------------########
-        #x = Q*xrnf
+        #x = Q^-1*xrnf
 
         eta = list()
         for index in range(dim_u):
@@ -640,20 +650,21 @@ class DiscreteFlatnessBasedTrajectory:
         # Matrizen der Regelungsnormalform holen
         ######-------!!!!!!Aufgabe!!!!!!-------------########
         # Hier bitte benötigte Zeilen wieder "einkommentieren" und Rest löschen
-        #self.A_rnf, Brnf, Crnf, self.M, self.Q, S = mimo_rnf(linearized_system.A, linearized_system.B, linearized_system.C, kronecker)
-        self.A_rnf = np.zeros((3, 3))
-        self.M = np.eye(2)
-        self.Q = np.eye(3)
-        ######-------!!!!!!Aufgabe Ende!!!!!!-------########
+        self.A_rnf, Brnf, Crnf, self.M, self.Q, S = mimo_rnf(
+            linearized_system.A, linearized_system.B, linearized_system.C, kronecker)
 
-        # Umrechnung stationäre Werte zwischen Ausgang und flachem Ausgang
+        ######-------!!!!!!Aufgabe Ende!!!!!!-------########
 
         ######-------!!!!!!Aufgabe!!!!!!-------------########
         # Hier sollten die korrekten Anfangs und Endwerte für den flachen Ausgang berechnet werden
         # Achtung: Hier sollten alle Werte relativ zum Arbeitspunkt angegeben werden
-
-        self.eta_a = np.zeros_like(ya_rel)
-        self.eta_b = np.zeros_like(yb_rel)
+        #y = Crnf * x
+        # x_2 und x_3 sind beide eta_b da Kroneckerindizes 1 und 2 sind
+        C = [[Crnf[0, 0], Crnf[0, 1]+Crnf[0, 2]]
+             [Crnf[1, 0], Crnf[1, 1]+Crnf[1, 2]]]
+        self.eta_a = np.linalg.inv(C) @ ya_rel
+        self.eta_b = np.linalg.inv(C) @ yb_rel
+        display(self.eta_a)
 
         ######-------!!!!!!Aufgabe Ende!!!!!!-------########
 
