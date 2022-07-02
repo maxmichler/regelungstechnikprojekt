@@ -1,12 +1,16 @@
+from this import d
 import numpy as np
 import scipy.linalg as sla
 import matplotlib.pyplot as plt
+import sympy
 
 from libmimo import mimo_rnf, mimo_acker, poly_transition
 from scipy.linalg import solve_continuous_are
 from scipy.linalg import solve_discrete_are
 from scipy.signal import cont2discrete
+from scipy.integrate import quad
 from sympy import *
+from sympy.abc import x
 
 
 class LinearizedSystem:
@@ -64,9 +68,16 @@ class ContinuousLinearizedSystem(LinearizedSystem):
         # bitte anpassen
 
         A_d = sla.expm(self.A*Ta)
-        B_d = integrate(lambda tau: sla.expm(self.A*tau), 0, Ta)
+        B_d = Matrix(self.A*x).exp().integrate((x, 0, Ta)) @ self.B
+        display('B_d')
+        display(B_d)
+        B_d = np.array(B_d).astype(np.cfloat)
         C_d = self.C
         D_d = self.D
+
+        display('B_d')
+        display(B_d)
+
         return DiscreteLinearizedSystem(A_d, B_d, C_d, D_d, self.x_equi, self.u_equi, self.y_equi, Ta)
         ######-------!!!!!!Aufgabe Ende!!!!!!-------########
 
@@ -525,17 +536,22 @@ class ContinuousFlatnessBasedTrajectory:
         #     (Crnf[0, 0]-Crnf[1, 0]*Crnf[0, 1]/Crnf[1, 1])
         # eta_a_2 = (ya_rel[1]-Crnf[1, 0]*eta_a_1)/Crnf[1, 1]
         # self.eta_a = np.array([eta_a_1, eta_a_2])
-
+        # display('u')
+        # display(linearized_system.u_equi)
+        # u = np.array([0, linearized_system.u_equi[1]])
+        xa, ua_equi = Heli().equilibrium(ya)
+        xb, ub_equi = Heli().equilibrium(yb)
         if kronecker == (1, 2):
-            display('true')
-            self.eta_a = np.linalg.inv(Crnf[:, 0:2]) @ ya_rel
-            self.eta_b = np.linalg.inv(Crnf[:, 0:2]) @ yb_rel
+            self.eta_a = np.linalg.inv(Crnf[:, 0:2]) @ (ya_rel-np.dot(
+                self.linearized_system.D, ua_equi - self.linearized_system.u_equi))
+            self.eta_b = np.linalg.inv(Crnf[:, 0:2]) @ (yb_rel-np.dot(
+                self.linearized_system.D, ub_equi - self.linearized_system.u_equi))
         elif kronecker == (2, 1):
             C = np.array([[Crnf[0, 0], Crnf[0, 2]], [Crnf[1, 0], Crnf[1, 2]]])
-            self.eta_a = np.linalg.inv(C) @ ya_rel
-            self.eta_b = np.linalg.inv(C) @ yb_rel
-
-        display(linearized_system.y_equi)
+            self.eta_a = np.linalg.inv(
+                C) @ (ya_rel-np.dot(self.linearized_system.D, ua_equi - self.linearized_system.u_equi))
+            self.eta_b = np.linalg.inv(
+                C) @ (yb_rel-np.dot(self.linearized_system.D, ub_equi - self.linearized_system.u_equi))
 
         ######-------!!!!!!Aufgabe Ende!!!!!!-------########
 
@@ -650,6 +666,7 @@ class DiscreteFlatnessBasedTrajectory:
         # Matrizen der Regelungsnormalform holen
         ######-------!!!!!!Aufgabe!!!!!!-------------########
         # Hier bitte benötigte Zeilen wieder "einkommentieren" und Rest löschen
+
         self.A_rnf, Brnf, Crnf, self.M, self.Q, S = mimo_rnf(
             linearized_system.A, linearized_system.B, linearized_system.C, kronecker)
 
@@ -660,11 +677,15 @@ class DiscreteFlatnessBasedTrajectory:
         # Achtung: Hier sollten alle Werte relativ zum Arbeitspunkt angegeben werden
         #y = Crnf * x
         # x_2 und x_3 sind beide eta_b da Kroneckerindizes 1 und 2 sind
-        C = [[Crnf[0, 0], Crnf[0, 1]+Crnf[0, 2]]
-             [Crnf[1, 0], Crnf[1, 1]+Crnf[1, 2]]]
-        self.eta_a = np.linalg.inv(C) @ ya_rel
-        self.eta_b = np.linalg.inv(C) @ yb_rel
-        display(self.eta_a)
+
+        xa, ua_equi = Heli().equilibrium(ya)
+        xb, ub_equi = Heli().equilibrium(yb)
+        C = np.array([[Crnf[0][0], Crnf[0][1]+Crnf[0][2]],
+                      [Crnf[1][0], Crnf[1][1]+Crnf[1][2]]])
+        self.eta_a = np.linalg.inv(
+            C) @ (ya_rel-np.dot(self.linearized_system.D, ua_equi - self.linearized_system.u_equi))
+        self.eta_b = np.linalg.inv(
+            C) @ (yb_rel-np.dot(self.linearized_system.D, ub_equi - self.linearized_system.u_equi))
 
         ######-------!!!!!!Aufgabe Ende!!!!!!-------########
 
@@ -679,9 +700,16 @@ class DiscreteFlatnessBasedTrajectory:
 
         ######-------!!!!!!Aufgabe!!!!!!-------------########
         # Hier sollten die korrekten Werte für die um "shift" nach links verschobene Trajektorie des flachen Ausgangs zurückgegeben werden
+        tau = (k+shift)/(self.N)
+        #tau = (k-shift)/(self.N - shift)
 
-        eta = np.zeros_like(k)
-        return eta
+        # if shift == 0:
+        return self.eta_a[index] + (self.eta_b[index] - self.eta_a[index]) * poly_transition(tau, 0, self.maxderi[index])
+        # else:
+        #     return (self.eta_b[index] - self.eta_a[index]) * poly_transition(tau, shift, self.maxderi[index])/(self.N-shift)**shift
+
+        # eta = np.zeros_like(k)
+        # return eta
 
         ######-------!!!!!!Aufgabe Ende!!!!!!-------########
 
@@ -694,6 +722,18 @@ class DiscreteFlatnessBasedTrajectory:
         dim_k = np.size(k)
         ######-------!!!!!!Aufgabe!!!!!!-------------########
         state = np.zeros((dim_x, dim_k))
+
+        eta = list()
+        for index in range(dim_u):
+            eta = eta+[self.flat_output(kv, index, shift)
+                       for shift in range(self.kronecker[index])]
+        xrnf = np.vstack(eta)
+        x = np.linalg.inv(self.Q) @ xrnf
+
+        state = np.transpose(x.transpose() + self.linearized_system.x_equi)
+
+        if (np.isscalar(k)):
+            state = state[:, 0]
         ######-------!!!!!!Aufgabe Ende!!!!!!-------########
         return state
 
@@ -720,7 +760,16 @@ class DiscreteFlatnessBasedTrajectory:
         dim_u = np.size(self.linearized_system.u_equi)
         dim_k = np.size(kv)
         ######-------!!!!!!Aufgabe!!!!!!-------------########
-        input = np.zeros((dim_u, dim_k))
+        eta = list()
+        for index in range(dim_u):
+            eta = eta+[self.flat_output(kv, index, shift)
+                       for shift in range(self.kronecker[index])]
+        xrnf = np.vstack(eta)
+        v = -self.A_rnf[self.kronecker.cumsum()-1, :]@xrnf
+        for jj in range(self.kronecker.shape[0]):
+            v[jj, :] += self.flat_output(kv, jj, self.kronecker[jj])
+        input = (np.linalg.inv(self.M)@v) + \
+            self.linearized_system.u_equi.reshape((dim_u, 1))
         ######-------!!!!!!Aufgabe Ende!!!!!!-------########
         if (np.isscalar(k)):
             input = input[:, 0]
