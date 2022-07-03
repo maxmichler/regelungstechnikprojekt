@@ -59,7 +59,7 @@ def controllability_matrix(A, B):
     for ii in range(A.shape[0]):
         S = np.hstack((S, block))
         block = A@block
-    print(np.shape(S))
+    # print(np.shape(S))
     return S
 
 

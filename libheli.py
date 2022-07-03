@@ -65,19 +65,11 @@ class ContinuousLinearizedSystem(LinearizedSystem):
     def discretize(self, Ta):
         assert Ta > 0
         ######-------!!!!!!Aufgabe!!!!!!-------------########
-        # bitte anpassen
-
         A_d = sla.expm(self.A*Ta)
         B_d = Matrix(self.A*x).exp().integrate((x, 0, Ta)) @ self.B
-        display('B_d')
-        display(B_d)
         B_d = np.array(B_d).astype(np.cfloat)
         C_d = self.C
         D_d = self.D
-
-        display('B_d')
-        display(B_d)
-
         return DiscreteLinearizedSystem(A_d, B_d, C_d, D_d, self.x_equi, self.u_equi, self.y_equi, Ta)
         ######-------!!!!!!Aufgabe Ende!!!!!!-------########
 
@@ -157,31 +149,27 @@ class Heli:
         seps = np.sin(epsilon)
         s2eps = np.sin(2*epsilon)
 
-        # dot_p_alpha = self.d2*ceps*self.s1*abs(w_alpha)*w_alpha-self.c1*dot_alpha - Gleichung 2a
         F_alpha = self.c1*dot_alpha/(self.d1*ceps)
         if(F_alpha >= 0):
             w_alpha = np.sqrt(self.c1*dot_alpha/(self.d2*ceps*self.s1))
         else:
             w_alpha = np.sqrt(-self.c1*dot_alpha/(self.d2*ceps*self.s1))
 
-        # dot_p_epsilon = -self.Vmax*ceps-1/2*(self.J2+self.J4)*s2eps*dot_alpha**2-self.J4*w_epsilon*seps*dot_alpha+self.d2*self.s2*abs(w_epsilon)*w_epsilon - Gleichung 2b
-        # mit kleiner Lösungsformel lösen - Achtung auf Fallunterscheidung da abs(w_epsilon)*w_epsilon != w_epsilon**2
-
         p = -self.J4*seps*dot_alpha/(self.d2*self.s2)
         q = (-self.Vmax*ceps-1/2*(self.J2+self.J4)
              * s2eps*dot_alpha**2)/(self.d2*self.s2)
 
-        if((p/2)**2-q < 0):  # w_epsilon kann nur Realteil besitzen - Fallunterscheidung
+        if((p/2)**2-q < 0):  # w_epsilon kann nur Realteil besitzen - Fallunterscheidung, da abs(x)*x nicht dasselbe wie x^2
             p = -1*p
             q = -1*q
 
         w_epsilon_1 = -p/2+np.sqrt((p/2)**2-q)
         w_epsilon_2 = -p/2-np.sqrt((p/2)**2-q)
 
+        # Fallunterscheidung: w_epsilon in Gleichung einsetzten, tatsächliche Lösung finden, aufgrund numerischen Ungenauigkeiten Bereich um 0
         test_1 = abs(w_epsilon_1)*w_epsilon_1+p*w_epsilon_1+q
         test_2 = abs(w_epsilon_2)*w_epsilon_2+p*w_epsilon_2+q
 
-        # Fallunterscheidung in Gleichung einsetzten, um Nullstelle zu finden - sollte eigentlich null sein bis auf numerische Ungenauigkeiten
         if(test_1 > -0.0001 and test_1 < 0.0001):
             w_epsilon = w_epsilon_1
         elif(test_2 > -0.0001 and test_2 < 0.0001):
@@ -206,9 +194,6 @@ class Heli:
         x_equi, u_equi = self.equilibrium(y_equi)
 
         ######-------!!!!!!Aufgabe!!!!!!-------------########
-        # Hier die sollten die korrekten Matrizen angegeben werden
-        # Winkelfunktionen vorausberechnen
-
         epsilon, p_epsilon, p_alpha, w_alpha, w_abs_alpha, w_epsilon, w_abs_epsilon = symbols(
             'epsilon p_epsilon p_alpha w_alpha w_abs_alpha w_epsilon w_abs_epsilon')
 
@@ -403,9 +388,9 @@ class Heli:
         # Hier sollten die korrekten Ableitungen berechnet und zurückgegebenn werden
         #u[1] = w_e, u[0]=w_a
 
-        # Gleichung 1a auf dot_alpha umgeformt
         dot_alpha = (p_alpha-self.J4*ceps*u[1]) / \
-            (self.J1+(self.J2+self.J4)*ceps**2)
+            (self.J1+(self.J2+self.J4)*ceps **
+             2)  # Gleichung 1a auf dot_alpha umgeformt
         dot_epsilon = (p_epsilon-self.J5*u[0]) / \
             (self.J3+self.J5)  # Gleichung 1b
 
@@ -419,7 +404,7 @@ class Heli:
         dot_p_epsilon = -self.Vmax*ceps-1/2*(self.J2+self.J4)*np.sin(
             2*epsilon)*dot_alpha**2-self.J4*u[1]*seps*dot_alpha+self.d1*F_eps-D_eps  # Gleichung 2b
 
-        dx = np.array([dot_epsilon, dot_p_alpha, dot_p_epsilon])  # Rückgabe dx
+        dx = np.array([dot_epsilon, dot_p_alpha, dot_p_epsilon])
 
         ######-------!!!!!!Aufgabe Ende!!!!!!-------########
         return dx
@@ -439,14 +424,12 @@ class Heli:
         # Winkelfunktionen vorausberechnen
         ceps = np.cos(epsilon)
         seps = np.sin(epsilon)
-        # Gleichung 1a auf dot_alpha umgeformt
-        dot_alpha = (p_alpha-self.J4*ceps*u[1]) / \
-            (self.J1+(self.J2+self.J4)*ceps**2)
 
-        if np.isscalar(t):
-            y = np.array([epsilon, dot_alpha])
-        else:
-            y = np.array([epsilon, dot_alpha])
+        dot_alpha = (p_alpha-self.J4*ceps*u[1]) / \
+            (self.J1+(self.J2+self.J4)*ceps **
+             2)  # Gleichung 1a auf dot_alpha umgeformt
+
+        y = np.array([epsilon, dot_alpha])
         ######-------!!!!!!Aufgabe Ende!!!!!!-------########
         return y
 
@@ -515,30 +498,17 @@ class ContinuousFlatnessBasedTrajectory:
             self.maxderi = self.maxderi
 
         ######-------!!!!!!Aufgabe!!!!!!-------------########
-        # Hier bitte benötigte Zeilen wieder "dekommentieren" und Rest löschen
         # Q Transformationsmatrix
         # S Kalmannsche Steuerbarkeitsmatrix
         self.A_rnf, Brnf, Crnf, self.M, self.Q, S = mimo_rnf(
             linearized_system.A, linearized_system.B, linearized_system.C, kronecker)
-        # self.A_rnf = np.zeros((3, 3))
-        # self.M = np.eye(2)
-        # self.Q = np.eye(3)
         ######-------!!!!!!Aufgabe Ende!!!!!!-------########
 
         # Umrechnung stationäre Werte zwischen Ausgang und flachem Ausgang
         ######-------!!!!!!Aufgabe!!!!!!-------------########
-        # Hier sollten die korrekten Anfangs und Endwerte für den flachen Ausgang berechnet werden
         # Achtung: Hier sollten alle werte relativ zum Arbeitspunkt angegeben werden
-        # y = C * x
-        # x_3 = 0 da Kroneckerindizes 1 und 2 sind
-
-        # eta_a_1 = (ya_rel[0]-Crnf[0, 1]/Crnf[1, 1]*ya_rel[1]) / \
-        #     (Crnf[0, 0]-Crnf[1, 0]*Crnf[0, 1]/Crnf[1, 1])
-        # eta_a_2 = (ya_rel[1]-Crnf[1, 0]*eta_a_1)/Crnf[1, 1]
-        # self.eta_a = np.array([eta_a_1, eta_a_2])
-        # display('u')
-        # display(linearized_system.u_equi)
-        # u = np.array([0, linearized_system.u_equi[1]])
+        # y = C * x + D * u
+        # x_2 oder x_3 = 0, da dot{eta_1} oder dot{eta_2} = 0 sind - stationärer Fall
         xa, ua_equi = Heli().equilibrium(ya)
         xb, ub_equi = Heli().equilibrium(yb)
         if kronecker == (1, 2):
@@ -552,7 +522,6 @@ class ContinuousFlatnessBasedTrajectory:
                 C) @ (ya_rel-np.dot(self.linearized_system.D, ua_equi - self.linearized_system.u_equi))
             self.eta_b = np.linalg.inv(
                 C) @ (yb_rel-np.dot(self.linearized_system.D, ub_equi - self.linearized_system.u_equi))
-
         ######-------!!!!!!Aufgabe Ende!!!!!!-------########
 
     # Trajektorie des flachen Ausgangs
@@ -571,29 +540,19 @@ class ContinuousFlatnessBasedTrajectory:
         dim_x = np.size(self.linearized_system.x_equi)
         dim_t = np.size(tv)
         ######-------!!!!!!Aufgabe!!!!!!-------------########
-        #x = Q^-1*xrnf
-
+        # Berechnung eta mit Funktion flat_output und anschließende Rücktransformation aus RNG mit x = Q^-1*xrnf
         eta = list()
         for index in range(dim_u):
             eta = eta+[self.flat_output(tv, index, deri)
                        for deri in range(self.kronecker[index])]
         xrnf = np.vstack(eta)
 
-        # xrnf = np.array([
-        #     self.flat_output(t, index, deri)
-        #     for index, k in enumerate(self.kronecker)
-        #     for deri in range(k)
-        # ])
-
-        # display(xrnf)
-        # display(self.linearized_system.x_equi)
         x = np.linalg.inv(self.Q) @ xrnf
-        #state = x + self.linearized_system.x_equi.transpose()
+        # Aufgrund von Broadcast-Regeln in Python mit den Shapes nur so berechnenbar
         state = np.transpose(x.transpose() + self.linearized_system.x_equi)
 
         if (np.isscalar(t)):
             state = state[:, 0]
-
         ######-------!!!!!!Aufgabe Ende!!!!!!-------########
         return state
 
@@ -665,28 +624,30 @@ class DiscreteFlatnessBasedTrajectory:
 
         # Matrizen der Regelungsnormalform holen
         ######-------!!!!!!Aufgabe!!!!!!-------------########
-        # Hier bitte benötigte Zeilen wieder "einkommentieren" und Rest löschen
-
         self.A_rnf, Brnf, Crnf, self.M, self.Q, S = mimo_rnf(
             linearized_system.A, linearized_system.B, linearized_system.C, kronecker)
-
         ######-------!!!!!!Aufgabe Ende!!!!!!-------########
 
         ######-------!!!!!!Aufgabe!!!!!!-------------########
         # Hier sollten die korrekten Anfangs und Endwerte für den flachen Ausgang berechnet werden
         # Achtung: Hier sollten alle Werte relativ zum Arbeitspunkt angegeben werden
-        #y = Crnf * x
-        # x_2 und x_3 sind beide eta_b da Kroneckerindizes 1 und 2 sind
-
+        #y = Crnf * x + D * u
+        # je nach Kroneckerindizes sind eta_1,k+1 oder eta_1,k+1 gleich eta_1,k bzw. eta_2,k
         xa, ua_equi = Heli().equilibrium(ya)
         xb, ub_equi = Heli().equilibrium(yb)
-        C = np.array([[Crnf[0][0], Crnf[0][1]+Crnf[0][2]],
-                      [Crnf[1][0], Crnf[1][1]+Crnf[1][2]]])
+        C = np.zeros((2, 2))
+        if kronecker == [1, 2]:
+            C = np.array([[Crnf[0][0], Crnf[0][1]+Crnf[0][2]],
+                          [Crnf[1][0], Crnf[1][1]+Crnf[1][2]]], dtype="complex_")
+
+        elif kronecker == [2, 1]:
+            C = np.array([[Crnf[0][0]+Crnf[0][1], Crnf[0][2]],
+                          [Crnf[1][0]+Crnf[1][1], Crnf[1][2]]], dtype="complex_")
+
         self.eta_a = np.linalg.inv(
             C) @ (ya_rel-np.dot(self.linearized_system.D, ua_equi - self.linearized_system.u_equi))
         self.eta_b = np.linalg.inv(
             C) @ (yb_rel-np.dot(self.linearized_system.D, ub_equi - self.linearized_system.u_equi))
-
         ######-------!!!!!!Aufgabe Ende!!!!!!-------########
 
     def flat_output(self, k, index, shift=0):
@@ -701,26 +662,18 @@ class DiscreteFlatnessBasedTrajectory:
         ######-------!!!!!!Aufgabe!!!!!!-------------########
         # Hier sollten die korrekten Werte für die um "shift" nach links verschobene Trajektorie des flachen Ausgangs zurückgegeben werden
         tau = (k+shift)/(self.N)
-        #tau = (k-shift)/(self.N - shift)
 
-        # if shift == 0:
         return self.eta_a[index] + (self.eta_b[index] - self.eta_a[index]) * poly_transition(tau, 0, self.maxderi[index])
-        # else:
-        #     return (self.eta_b[index] - self.eta_a[index]) * poly_transition(tau, shift, self.maxderi[index])/(self.N-shift)**shift
-
-        # eta = np.zeros_like(k)
-        # return eta
-
         ######-------!!!!!!Aufgabe Ende!!!!!!-------########
 
     # Zustandstrajektorie
-
     def state(self, k):
         kv = np.atleast_1d(k)
         dim_u = np.size(self.linearized_system.u_equi)
         dim_x = np.size(self.linearized_system.x_equi)
         dim_k = np.size(k)
         ######-------!!!!!!Aufgabe!!!!!!-------------########
+        # analog zu state im kont.
         state = np.zeros((dim_x, dim_k))
 
         eta = list()
@@ -760,6 +713,7 @@ class DiscreteFlatnessBasedTrajectory:
         dim_u = np.size(self.linearized_system.u_equi)
         dim_k = np.size(kv)
         ######-------!!!!!!Aufgabe!!!!!!-------------########
+        # analog zu input im kont.
         eta = list()
         for index in range(dim_u):
             eta = eta+[self.flat_output(kv, index, shift)
